@@ -1,8 +1,6 @@
 const express = require('express');
 const app = express();
 const port = 3000;
-
-// Get the client BD
 const mysql = require('mysql2/promise');
 const cors = require('cors');
 const session = require('express-session');
@@ -18,27 +16,69 @@ app.use(session({
 }));
 app.use(express.json()); // Para analizar el cuerpo de las solicitudes en formato JSON
 
-// Create the connection to database BD
+// Crear la conexión a la base de datos
 const connection = mysql.createPool({
   host: 'localhost',
   user: 'root',
   database: 'nuevo_user',
 });
 
-// Función login para manejar el login
+// Verificar conexión a la base de datos
+connection.getConnection()
+  .then(conn => {
+    console.log('Conexión a la base de datos exitosa');
+    conn.release();
+  })
+  .catch(err => {
+    console.error('Error al conectar a la base de datos:', err);
+  });
+
+// Función para manejar el login
 async function login(req, res) {
   const datos = req.query;
   const [filas] = await connection.query("SELECT * FROM `registro_user` WHERE `nickname` = ? AND `contrasena`= ?", [datos.nickname, datos.contrasena]);
 
   if (filas.length > 0) {
     req.session.nickname = datos.nickname;
-    res.json({logueado: true});
+    res.json({ logueado: true });
   } else {
-    res.status(401).json({error: 'Usuario o contraseña incorrecta'});
+    res.status(401).json({ error: 'Usuario o contraseña incorrecta' });
   }
 }
 
-app.get('/login', login); //petición login
+app.get('/login', login); // Petición login
+
+// Función para manejar el registro de usuarios
+async function registerUser(req, res) {
+  const {
+    user_name,
+    user_lastname,
+    user_second_lastname,
+    user_phone,
+    user_id,
+    user_nickname,
+    user_mail,
+    user_pass
+  } = req.body;
+
+  try {
+    const [result] = await connection.query(
+      "INSERT INTO `registro_user` (nombre, primer_apellido, segundo_apellido, telefono, documento_id, nickname, correo, contrasena) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [user_name, user_lastname, user_second_lastname, user_phone, user_id, user_nickname, user_mail, user_pass]
+    );
+
+    if (result.affectedRows > 0) {
+      res.status(201).json({ message: 'Usuario registrado exitosamente' });
+    } else {
+      res.status(500).json({ error: 'Error en el registro del usuario' });
+    }
+  } catch (error) {
+    console.error('Error en el registro del usuario:', error);
+    res.status(500).json({ error: 'Error en el registro del usuario' });
+  }
+}
+
+app.post('/register', registerUser); // Petición de registro de usuarios
 
 // Función para manejar el registro de mandriles
 async function registrarMandriles(req, res) {
@@ -46,11 +86,11 @@ async function registrarMandriles(req, res) {
 
   try {
     // Iniciar transacción
-    const connection = await mysql.createConnection({ host: 'localhost', user: 'root', database: 'nuevo_user' });
-    await connection.beginTransaction();
+    const conn = await connection.getConnection();
+    await conn.beginTransaction();
 
     // Registrar transacción en registro_mandriles
-    await connection.query(
+    await conn.query(
       "INSERT INTO `registro_mandriles` (referencia, cantidad, tipo) VALUES (?, ?, ?)",
       [referencia, cantidad, tipo]
     );
@@ -63,31 +103,38 @@ async function registrarMandriles(req, res) {
       query = "UPDATE inventario SET cantidad = cantidad - ? WHERE referencia = ?";
     }
 
-    await connection.query(query, [cantidad, referencia]);
+    await conn.query(query, [cantidad, referencia]);
 
     // Confirmar transacción
-    await connection.commit();
+    await conn.commit();
     res.status(201).json({ message: 'Registro de mandriles exitoso' });
   } catch (error) {
     // Revertir transacción en caso de error
     if (connection) {
       await connection.rollback();
     }
+    console.error('Error en el registro de mandriles:', error);
     res.status(500).json({ error: 'Error en el registro de mandriles' });
-  } finally {
-    if (connection) {
-      await connection.end();
-    }
   }
 }
 
-app.post('/registrar-mandriles', registrarMandriles); //petición Registro
+app.post('/registrar-mandriles', registrarMandriles); // Petición de registro de mandriles
 
 app.get('/validar', (req, res) => {
   if (req.session.nickname) {
     res.status(200).send('Sesión Validada');
   } else {
     res.status(401).send('No autorizado');
+  }
+});
+
+app.get('/inventario', async (req, res) => {
+  try {
+    const [rows] = await connection.query("SELECT * FROM inventario");
+    res.json(rows);
+  } catch (error) {
+    console.error('Error al obtener el inventario:', error);
+    res.status(500).json({ error: 'Error al obtener el inventario' });
   }
 });
 
