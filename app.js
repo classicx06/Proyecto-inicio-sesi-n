@@ -6,21 +6,32 @@ const cors = require('cors');
 const session = require('express-session');
 
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: process.env.URLFRONTEND || 'http://localhost:5173',
   credentials: true
 }));
+
 app.use(session({
-  secret: 'dsd214545r4e12dsf45s2124dfs15ef4s2d1',
+  secret: process.env.SECRETSESSION || 'dsd214545r4e12dsf45s2124dfs15ef4s2d1',
+  
+  proxy: process.env.NODE_ENV === 'production',
   resave: false,
-  saveUninitialized: true
+  saveUninitialized: true,
+
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'none'
+  }
 }));
+
 app.use(express.json()); // Para analizar el cuerpo de las solicitudes en formato JSON
 
 // Crear la conexión a la base de datos
 const connection = mysql.createPool({
-  host: 'localhost',
-  user: 'root',
-  database: 'nuevo_user',
+  host: process.env.HOSTDB || 'localhost',
+  user: process.env.USERDB || 'root',
+  database: process.env.DB || 'nuevo_user',
+  password: process.env.PASSWORDDB || '',
+  port: process.env.PORTDB || 3306
 });
 
 // Verificar conexión a la base de datos
