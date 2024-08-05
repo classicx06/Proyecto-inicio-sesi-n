@@ -5,6 +5,8 @@ const mysql = require('mysql2/promise');
 const cors = require('cors');
 const session = require('express-session');
 
+mysql://root:TzOntgEpVHfgUAEctJQOQtpOuoKYYDrO@monorail.proxy.rlwy.net:10795/railway
+
 app.use(cors({
   origin: process.env.URLFRONTEND || 'http://localhost:5173',
   credentials: true
